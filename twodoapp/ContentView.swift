@@ -51,6 +51,9 @@ struct ContentView: View {
                             .font(.subheadline)
                             .foregroundStyle(.secondary)
                     }
+                    .padding(20)
+                    .glassCard(cornerRadius: 20)
+                    .padding(.horizontal, 24)
                     .frame(maxWidth: .infinity, maxHeight: .infinity)
                 } else {
                     List {
@@ -58,6 +61,9 @@ struct ContentView: View {
                             Section(header: sectionHeader("⏳ ค้างอยู่", count: pendingItems.count)) {
                                 ForEach(pendingItems) { item in
                                     todoRow(item)
+                                        .listRowBackground(Color.clear)
+                                        .listRowSeparator(.hidden)
+                                        .listRowInsets(EdgeInsets(top: 6, leading: 16, bottom: 6, trailing: 16))
                                 }
                                 .onDelete(perform: deletePending)
                             }
@@ -67,12 +73,22 @@ struct ContentView: View {
                             Section(header: sectionHeader("✅ เสร็จแล้ว", count: completedItems.count)) {
                                 ForEach(completedItems) { item in
                                     todoRow(item)
+                                        .listRowBackground(Color.clear)
+                                        .listRowSeparator(.hidden)
+                                        .listRowInsets(EdgeInsets(top: 6, leading: 16, bottom: 6, trailing: 16))
                                 }
                                 .onDelete(perform: deleteCompleted)
                             }
                         }
                     }
+                    .scrollContentBackground(.hidden)
+                    #if os(macOS)
+                    .listStyle(.inset)
+                    .listSectionSpacing(.compact)
+                    .padding(.top, -6)
+                    #else
                     .listStyle(.insetGrouped)
+                    #endif
                 }
             }
             .navigationTitle("📝 2 Do App")
@@ -87,6 +103,7 @@ struct ContentView: View {
                 }
             }
         }
+        .background(LiquidGlassBackground().ignoresSafeArea())
         .sheet(item: $activeSheet) { sheet in
             switch sheet {
             case .add:
@@ -148,25 +165,35 @@ struct ContentView: View {
 
             Spacer()
         }
+        .padding(12)
+        .cardBackground()
         .contentShape(Rectangle())
+        .id(item.id) // คง identity ให้คงที่ระหว่างสไลด์
         .onTapGesture {
             activeSheet = .edit(item)
         }
-        .swipeActions(edge: .trailing, allowsFullSwipe: true) {
+        // ปิด full-swipe เพื่อไม่ให้ลบทันทีขณะสไลด์
+        .swipeActions(edge: .trailing) {
             Button(role: .destructive) {
-                store.delete(item)
+                // หน่วงเล็กน้อยให้ระบบปิดการกวาดก่อน แล้วค่อยลบ
+                deferMutation {
+                    store.delete(item)
+                }
             } label: {
-                Label("ลบ 🗑️", systemImage: "trash")
+                Image(systemName: "trash")
             }
+            .accessibilityLabel("ลบ")
 
             Button {
-                activeSheet = .edit(item)
+                deferMutation {
+                    activeSheet = .edit(item)
+                }
             } label: {
-                Label("แก้ไข ✏️", systemImage: "pencil")
+                Image(systemName: "pencil")
             }
             .tint(.blue)
+            .accessibilityLabel("แก้ไข")
         }
-        .padding(.vertical, 4)
     }
 
     private func deletePending(at offsets: IndexSet) {
@@ -189,18 +216,25 @@ struct ContentView: View {
         }
         .font(.subheadline)
         .textCase(nil)
+        .padding(.horizontal, 12)
+        .padding(.vertical, 6)
+        .background(.thinMaterial, in: Capsule(style: .continuous))
+        .overlay(
+            Capsule(style: .continuous)
+                .stroke(Color.white.opacity(0.25), lineWidth: 1)
+        )
     }
 
     private func statusEmoji(for dueDate: Date?) -> String? {
         guard let dueDate else { return nil }
         let now = Date()
         if dueDate < now {
-            return "🔥" // เลยกำหนด
+            return "🔥"
         }
         if let soon = Calendar.current.date(byAdding: .hour, value: 24, to: now), dueDate <= soon {
-            return "⏰" // ภายใน 24 ชม.
+            return "⏰"
         }
-        return "📅" // อนาคต
+        return "📅"
     }
 
     private enum ActiveSheet: Identifiable {
@@ -213,6 +247,91 @@ struct ContentView: View {
                 return "add"
             case .edit(let item):
                 return "edit-\(item.id.uuidString)"
+            }
+        }
+    }
+}
+
+private struct LiquidGlassBackground: View {
+    @Environment(\.colorScheme) private var colorScheme
+
+    var body: some View {
+        ZStack {
+            LinearGradient(
+                colors: [
+                    Color.blue.opacity(colorScheme == .dark ? 0.35 : 0.5),
+                    Color.purple.opacity(colorScheme == .dark ? 0.35 : 0.5),
+                    Color.pink.opacity(colorScheme == .dark ? 0.35 : 0.5),
+                    Color.cyan.opacity(colorScheme == .dark ? 0.35 : 0.5)
+                ],
+                startPoint: .topLeading,
+                endPoint: .bottomTrailing
+            )
+
+            Circle()
+                .fill(Color.cyan.opacity(0.35))
+                .frame(width: 280, height: 280)
+                .blur(radius: 80)
+                .offset(x: -140, y: -200)
+
+            Circle()
+                .fill(Color.pink.opacity(0.35))
+                .frame(width: 260, height: 260)
+                .blur(radius: 90)
+                .offset(x: 160, y: -120)
+
+            Circle()
+                .fill(Color.purple.opacity(0.35))
+                .frame(width: 300, height: 300)
+                .blur(radius: 100)
+                .offset(x: 120, y: 260)
+        }
+        .ignoresSafeArea()
+    }
+}
+
+// พื้นหลังการ์ดแบบเสถียร ลดปัญหา mask ของ UIKit ระหว่างสไลด์
+private struct CardBackground: View {
+    @Environment(\.colorScheme) private var colorScheme
+    var cornerRadius: CGFloat = 16
+
+    var body: some View {
+        RoundedRectangle(cornerRadius: cornerRadius, style: .continuous)
+            .fill(.ultraThinMaterial)
+            .overlay(
+                RoundedRectangle(cornerRadius: cornerRadius, style: .continuous)
+                    .stroke(Color.white.opacity(0.22), lineWidth: 1)
+            )
+            .shadow(
+                color: (colorScheme == .dark ? Color.black.opacity(0.35) : Color.black.opacity(0.08)),
+                radius: (colorScheme == .dark ? 16 : 8),
+                x: 0,
+                y: (colorScheme == .dark ? 8 : 4)
+            )
+    }
+}
+
+private extension View {
+    func glassCard(cornerRadius: CGFloat = 16) -> some View {
+        background(CardBackground(cornerRadius: cornerRadius))
+    }
+
+    func cardBackground(cornerRadius: CGFloat = 16) -> some View {
+        background(CardBackground(cornerRadius: cornerRadius))
+            .clipShape(RoundedRectangle(cornerRadius: cornerRadius, style: .continuous))
+    }
+
+    // หน่วงการเปลี่ยนแปลงแหล่งข้อมูลหลังจากปุ่มกวาดถูกกด
+    func deferMutation(_ block: @escaping () -> Void) {
+        Task {
+            // หน่วง ~120ms ให้ UIKit ปิดการกวาด/ทำ state transition ให้เรียบร้อยก่อน
+            try? await Task.sleep(nanoseconds: 120_000_000)
+            await MainActor.run {
+                var t = Transaction()
+                t.disablesAnimations = true
+                withTransaction(t) {
+                    block()
+                }
             }
         }
     }
