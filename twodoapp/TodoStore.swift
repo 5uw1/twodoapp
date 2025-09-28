@@ -1,4 +1,5 @@
 import Foundation
+import Combine
 
 @MainActor
 final class TodoStore: ObservableObject {
@@ -52,7 +53,7 @@ final class TodoStore: ObservableObject {
 
         // เมื่อทำเสร็จแล้ว ยกเลิกการเตือน (ถ้ามี)
         if item.isCompleted, let nid = item.notificationId {
-            LocalNotificationManager.shared.cancelNotification(id: nid)
+            Task { await LocalNotificationManager.shared.cancelNotification(id: nid) }
             item.notificationId = nil
         }
 
@@ -62,7 +63,7 @@ final class TodoStore: ObservableObject {
 
     func delete(_ item: TodoItem) {
         if let nid = item.notificationId {
-            LocalNotificationManager.shared.cancelNotification(id: nid)
+            Task { await LocalNotificationManager.shared.cancelNotification(id: nid) }
         }
         items.removeAll { $0.id == item.id }
         save()
@@ -72,7 +73,7 @@ final class TodoStore: ObservableObject {
         let toDelete = items.filter(shouldDelete)
         for item in toDelete {
             if let nid = item.notificationId {
-                LocalNotificationManager.shared.cancelNotification(id: nid)
+                Task { await LocalNotificationManager.shared.cancelNotification(id: nid) }
             }
         }
         items.removeAll(where: shouldDelete)
@@ -124,7 +125,7 @@ final class TodoStore: ObservableObject {
                 // หากตั้งเตือนไม่ได้ ก็ปล่อยรายการไว้โดยไม่มี notificationId
             }
         } else if let nid = item.notificationId {
-            LocalNotificationManager.shared.cancelNotification(id: nid)
+            await LocalNotificationManager.shared.cancelNotification(id: nid)
             item.notificationId = nil
         }
     }

@@ -32,12 +32,12 @@ actor LocalNotificationManager {
 
         let request = UNNotificationRequest(identifier: identifier, content: content, trigger: trigger)
 
-        try await withCheckedThrowingContinuation { continuation in
+        try await withCheckedThrowingContinuation { (continuation: CheckedContinuation<Void, Error>) in
             center.add(request) { error in
                 if let error {
                     continuation.resume(throwing: error)
                 } else {
-                    continuation.resume()
+                    continuation.resume(returning: ())
                 }
             }
         }
